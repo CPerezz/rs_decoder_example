@@ -95,6 +95,18 @@ impl Polynomial {
             .map(|(power, coeff)| *power * *coeff)
             .sum()
     }
+
+    /// Finds the greatest common divisor polynomial between two polynomials.
+    /// Stops when reaches a poly with degree < t + (#Borrows /2)
+    pub fn gcd_for_eavluator(self, other: Polynomial, t: Fp, num_borrows: u8) -> Polynomial {
+        if self == Polynomial::zero() {
+            return other;
+        };
+        if self.degree() < (t.0 + num_borrows >> 1) as usize {
+            return self.clone();
+        }
+        return ((other / self.clone()).1).gcd_for_eavluator(self.clone(), t, num_borrows);
+    }
 }
 
 // Resulting poly will have the same degree or less than the bigger poly that took
