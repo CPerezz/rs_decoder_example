@@ -6,15 +6,31 @@ pub fn decode_poly(wD: Polynomial, borrows: &[u8], t: Fp) -> Polynomial {
     // Compute syndromes poly
     let sD = compute_syndroms_poly(&wD, t);
     println!("Syndromes Poly: {:?}", sD);
-    // Compute borrows poly
+    // Compute borrows localizator poly
     let lD = compute_borrows_localizator_poly(borrows);
     println!("Borrows Poly: {:?}", lD);
     // Compute modified syndrome poly
-    let tD = compute_modified_syndrome_poly(sD, lD, t);
+    let tD = compute_modified_syndrome_poly(sD, lD.clone(), t);
     println!("Modif Syndromes Poly: {:?}", tD);
     // Compute evaluator poly
-    let evD = compute_evaluator_poly(tD, t, ((borrows.len() - 1) as u8).try_into().unwrap());
+    let evD = compute_evaluator_poly(
+        tD.clone(),
+        t,
+        ((borrows.len() - 1) as u8).try_into().unwrap(),
+    );
     println!("Evaluator Poly: {:?}", evD);
+    // Compute localizator poly
+    let l_hat_t = compute_localizator_poly(tD, t);
+    println!("Localizator Poly: {:?}", l_hat_t.clone());
+    // Chien search over l_hat_d (Localizator poly)
+    // These are stored starting from the biggest degree term
+    let error_positions = chien_search(l_hat_t.clone());
+
+    println!("Error positions: {:?}", error_positions);
+    // Calculate L'(D) poly
+    let l_prime_d = localizator_prime_poly(lD, l_hat_t);
+    println!("L'(D) Poly: {:?}", l_prime_d.clone());
+
     Polynomial::zero()
 }
 
@@ -56,6 +72,50 @@ fn compute_evaluator_poly(tD: Polynomial, t: Fp, num_borrows: u8) -> Polynomial 
 
     // Execute custom GCD until residue with degree < (t + #borrows/2).
     d_2t_poly.gcd_for_eavluator(tD, t, num_borrows)
+}
+
+/// Computes the localizator poly by applying the Extended GCD
+/// algorigthm.
+fn compute_localizator_poly(tD: Polynomial, t: Fp) -> Polynomial {
+    // Compute x^2t poly
+    let mut d_2t_poly = vec![Fp::zero(); 2 * t.0 as usize + 2];
+    d_2t_poly[2 * t.0 as usize + 1] = Fp::one();
+    let d_2t_poly = Polynomial::from_fp_coefficients_vec(d_2t_poly);
+
+    // Extended GCD between tD & x^2t
+    d_2t_poly.extended_gcd(tD).0
+}
+
+/// Evaluates the localizator poly on points 0... until it finds
+/// as many 0's as the degree of the localizator error.
+///
+/// This is indeed because the localizator error degree is already
+/// telling us how many errors does the recieved message has. So we know
+/// that we need to be evaluating the poly until two evaluations give 0.
+/// The error_positions are returned starting by the most significant
+/// monomial of the polynomial.
+fn chien_search(base_poly: Polynomial) -> Vec<u8> {
+    let mut error_positions = vec![];
+    let mut i = 1u8;
+
+    while error_positions.len() < base_poly.degree() {
+        let eval = base_poly.evaluate(Fp(i));
+        if eval == Fp::zero() {
+            error_positions.push(i);
+        };
+        i += 1;
+    }
+
+    error_positions
+}
+
+/// Computes the L(D) poly by multiplying the borrow localizator times
+/// the localizator_poly and derivating the result.
+fn localizator_prime_poly(lD: Polynomial, l_hat_d: Polynomial) -> Polynomial {
+    let lD_final = lD * l_hat_d;
+
+    // Return ld_final's derivate
+    lD_final.derivate()
 }
 
 #[cfg(test)]

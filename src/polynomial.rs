@@ -107,6 +107,48 @@ impl Polynomial {
         }
         return ((other / self.clone()).1).gcd_for_eavluator(self.clone(), t, num_borrows);
     }
+
+    /// Returns the GCD + Bezout's coefficients
+    pub fn extended_gcd(self, other: Polynomial) -> (Polynomial, Polynomial, Polynomial) {
+        let (mut x, mut y) = (
+            Polynomial::from_coefficients_slice(&[1u8]),
+            Polynomial::from_coefficients_slice(&[1u8]),
+        );
+        let mut a = self.clone();
+        let mut b = other.clone();
+
+        if self == Polynomial::zero() {
+            return (
+                b,
+                Polynomial::zero(),
+                Polynomial::from_coefficients_slice(&[1u8]),
+            );
+        };
+        let mut res = ((b.clone() / a.clone()).1).extended_gcd(a.clone());
+        x = res.2 - ((b / a.clone()).0 * res.1.clone());
+        y = res.1;
+
+        (res.0, x, y)
+    }
+
+    /// Derivates a polynomial over a GF.
+    /// This means that the even terms dissapear.
+    pub fn derivate(self) -> Polynomial {
+        // Shift to the  right the poly by one cancelling the odd terms
+        let mut res = &self >> 1;
+        // Skip degree 0 term
+        res.coeffs
+            .iter_mut()
+            .enumerate()
+            .skip(1)
+            .for_each(|(idx, coeff)| {
+                if idx & 1 != 0 {
+                    *coeff = Fp::zero()
+                }
+            });
+
+        res
+    }
 }
 
 // Resulting poly will have the same degree or less than the bigger poly that took
